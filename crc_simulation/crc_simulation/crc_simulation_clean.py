@@ -2,74 +2,68 @@
 #
 #   CRC simulation
 #   by Lamario
-#   v1.0    2018-02-12
+#   v1.2    2018-02-12
 #
 ######################################################
 # DEFINING FUNCTIONS
-def remLeadZero (inputStr) :
-    number = len(inputStr)
+import random
 
-    counter = 1
-    while counter != number+1 :
-        if inputStr[0] == '0' :
-            inputStr = inputStr[1:]
-        counter += 1
-    return inputStr
+def remLeadZero ( s ) :
+    return s[s.find('1'):]
 
-def doCRC (sequence, polynomial, errorPattern) :
+def doCRC ( sequence, polynomial ) :
     sequence = remLeadZero(sequence)
-    #print sequence
     polynomial = remLeadZero(polynomial)
-    errorPattern = remLeadZero(errorPattern)
-
-    CRCloop = len(sequence)
-    #print CRCloop
-
     run = True
-    positionTemp = 5
+    position = len(polynomial)
     sequenceStart = ""
-
-    for loop in range( 0, len(polynomial) ) :
-        sequenceStart += sequence[loop]
-    test1Str = sequenceStart
+    partialSequence = sequence[:len(polynomial)]
 
     while run :
-        position = 0
-        midtest = ""        
+        partialCRC = ""   
+        
+        # XOR with polynomial     
         for loop in range( 0, len(polynomial) ) :
-            test1 = test1Str[loop]
-            test2 = polynomial[loop]
-            testResult = int(test1) ^ int(test2)
-            midtest = midtest + str(testResult)               
+            sequenceBit = partialSequence[loop]
+            polynomialBit = polynomial[loop]
+            xorResult = int(sequenceBit) ^ int(polynomialBit)
+            partialCRC = partialCRC + str(xorResult)               
 
-        if positionTemp != (CRCloop) :
+        if position != len(sequence) :            
+            partialCRC = remLeadZero(partialCRC)
+            bitsToAdd = 5 - len(partialCRC)
 
-            #print 'original midtest: ', midtest
+            # Adding bits to partialCRC from sequence
+            if bitsToAdd <= len(sequence) - position :
+                for loop in range(bitsToAdd) :
+                    position += 1
+                    partialCRC += sequence[position - 1]
+            else :
+                partialCRC = partialCRC + sequence[position:]
+                run = False
 
-            newMidtest = remLeadZero(midtest)
-            #print 'midtest without 0: ', newMidtest
-            #print 'original positionTemp: ', positionTemp
-
-            bitsToAdd = 5 - len(remLeadZero(midtest))
-            #print 'how many bits to add: ', bitsToAdd
-
-            for loop2 in range ( bitsToAdd ) :
-                positionTemp += 1
-                newMidtest += sequence[positionTemp - 1]
-            
-                #print 'newMidtest: ', newMidtest
-                #print 'positionTemp: ', positionTemp
-
-            #print 'new positionTemp: ', positionTemp
-
-            test1Str = newMidtest
-
-            #if CRCloop == positionTemp :
+            partialSequence = partialCRC
         else : 
             run = False
         
-        #print ""
-    return midtest[1:]
+    return partialCRC[1:]
+
+def implementError( sequence, error ) :
+    errorPosition = random.randint( 1, len(sequence) - 1 - len(error) ) 
+    prefix =  sequence[:errorPosition]
+    errorSequence = ""
+    suffix = sequence[errorPosition+len(error):]
+
+    for loop in range ( 0, len(error) ) :
+        if error[loop] == "1" : 
+            if sequence[errorPosition + loop] == "1" :
+                errorSequence += "0"
+            elif sequence[errorPosition + loop] == "0" :
+                errorSequence += " 1"
+        elif error[loop] == "0" :
+            errorSequence += sequence[errorPosition + loop]
+
+    return ( prefix + errorSequence + suffix )
 
 # defining the main () function
 def main () :
@@ -80,39 +74,52 @@ def main () :
     polynomial = "10011"
     errorPattern = "101"
 
-    userAnswer = str ( input ('Use defaults? "1"=Yes, "0"=No: '))
-    if userAnswer == "0" :
+    # Get user input on using default values
+    userAnswer = str ( raw_input ('Use defaults? "no"=No: '))
+    if userAnswer == "no" :
         print 'Default code sequence is: \t ' + sequence
-        newSequence = str ( input ('Enter code or \"2\" for default:   '))
-        if newSequence != "2" :
+        newSequence = str ( raw_input ('Enter code or leave empty for default:   '))
+        if newSequence != "" :
             sequence = newSequence
-        print ""
 
-        print 'Default polynomial is: \t\t ' + polynomial
-        newPolynomial = str ( input ('Enter code or \"2\" for default:   '))
-        if newPolynomial != "2" :
+        print '\nDefault polynomial is: \t\t ' + polynomial
+        newPolynomial = str ( raw_input ('Enter code or leave empty for default:   '))
+        if newPolynomial != "" :
             polynomial = newPolynomial
-        print ""
 
-        print 'Default error pattern is: \t ' + errorPattern
-        newErrorPattern = str ( input ('Enter code or \"2\" for default:   '))
-        if newErrorPattern != "2" :
+        print '\nDefault error pattern is: \t ' + errorPattern
+        newErrorPattern = str ( raw_input ('Enter code or leave empty for default:   '))
+        if newErrorPattern != "" :
             errorPattern = newErrorPattern
     elif userAnswer == "1" :
         print "Using defaults..."
 
-    firstCRC = doCRC (sequence + "0000", polynomial, errorPattern)
-    print ""
-    print "CRC: " + firstCRC
+    # Calculate CRC
+    print "\nCalculating CRC number..."
+    firstRound = doCRC ( sequence + "0000", polynomial ) 
+    print "CRC = " + firstRound
 
-    secondCRC = doCRC (sequence + firstCRC, polynomial, errorPattern)    
-    print "Verifying CRC... " + secondCRC
+    # Verify CRC
+    secondRound = doCRC ( sequence + firstRound, polynomial )    
+    print "Verifying CRC... " + secondRound
+    if secondRound == "0000" :
+        print "CRC was successfull" 
+              
+    # Implement Error to sequence
+    print "\nIntroducing Error randomly into the sequence...\n"
+    print "Error = " + errorPattern
+    errorSequence = implementError ( sequence + firstRound, errorPattern )
+    print 'Original: ' + sequence + firstRound
+    print 'W/ error: ' + errorSequence    
+    print len(errorSequence)
 
-    if secondCRC == "0000" :
-        print "CRC was successfull"
-    
-    print "\nIntroducing Error randomly into the sequence...NOT IMPLEMENTED\n"
-
+    # Check for errors
+    thirdRound = doCRC ( errorSequence, polynomial )
+    print "\nChecking for Errors...\nCRC = " + thirdRound
+    if thirdRound != "0000" :
+        print "Error was found!  " + firstRound + '=/=' + thirdRound
+    else :
+        print "No error was found.\n"
 
 # THIS IS THE MAIN BODY / START OF THE PROGRAM
 main ()
